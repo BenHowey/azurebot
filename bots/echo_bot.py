@@ -28,5 +28,5 @@ class EchoBot(ActivityHandler):
     async def on_message_activity(self, turn_context: TurnContext):
         rand_int = create_df()
         return await turn_context.send_activity(
-            MessageFactory.text(f"Echo: {turn_context.activity.text}_{rand_int}")
+            MessageFactory.text(f"Echo: {turn_context.activity.text}_{rand_int}_i just updated main")
         )
