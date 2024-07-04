@@ -2,3 +2,4 @@ botbuilder-integration-aiohttp>=4.14.0
 botbuilder-core
 botbuilder-schema
 pandas
+python-dotenv
