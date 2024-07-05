@@ -5,3 +5,4 @@ pandas==1.5.3
 python-dotenv
 pandasai==2.0.43
 numpy==1.24.3
+pyyaml==6.0
