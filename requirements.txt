@@ -3,3 +3,4 @@ botbuilder-core
 botbuilder-schema
 pandas
 python-dotenv
+pandasai
