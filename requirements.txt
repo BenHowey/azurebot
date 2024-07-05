@@ -1,6 +1,7 @@
 botbuilder-integration-aiohttp>=4.14.0
 botbuilder-core
 botbuilder-schema
-pandas
+pandas==1.5.3
 python-dotenv
-pandasai
+pandasai==2.0.43
+numpy==1.24.3
