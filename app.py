@@ -14,15 +14,42 @@ from botbuilder.core import (
 from botbuilder.core.integration import aiohttp_error_middleware
 from botbuilder.integration.aiohttp import CloudAdapter, ConfigurationBotFrameworkAuthentication
 from botbuilder.schema import Activity, ActivityTypes
+import logging
 
-from bots.echo_bot import EchoBot
+from bots.pete_bot import PeteBot
 from config import DefaultConfig
+from botbuilder.core import (
+    ConversationState,
+    MemoryStorage,
+    TurnContext,
+    UserState,
+)
 
+# from dialogs.dataframe_dialog import UserProfileDialog
+from dialogs.df_dialog import DataframeDialog
+# from dialogs.ai_dialog import AIBotDialog
+from dialogs.ai_chatgtp import AIBotDialog
+from dialogs.main_dialog import MainDialog
 CONFIG = DefaultConfig()
 
 # Create adapter.
 # See https://aka.ms/about-bot-adapter to learn more about how bots work.
 ADAPTER = CloudAdapter(ConfigurationBotFrameworkAuthentication(CONFIG))
+
+# set up a stream logger
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+# set up a std out logger
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.INFO)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+# set up a file log
+fh = logging.FileHandler('app.log')
+fh.setLevel(logging.INFO)
+fh.setFormatter(formatter)
+logger.addHandler(fh)
 
 
 # Catch-all for errors.
@@ -34,9 +61,9 @@ async def on_error(context: TurnContext, error: Exception):
     traceback.print_exc()
 
     # Send a message to the user
-    await context.send_activity("The bot encountered an error or bug.")
+    await context.send_activity("I'm sorry I can't answer that right now.")
     await context.send_activity(
-        "To continue to run this bot, please fix the bot source code."
+        "I have sent a message to notify admin. Please continue to use the bot as normal"
     )
     # Send a trace activity if we're talking to the Bot Framework Emulator
     if context.activity.channel_id == "emulator":
@@ -54,9 +81,15 @@ async def on_error(context: TurnContext, error: Exception):
 
 
 ADAPTER.on_turn_error = on_error
+# Create MemoryStorage, UserState and ConversationState
+MEMORY = MemoryStorage()
+CONVERSATION_STATE = ConversationState(MEMORY)
+USER_STATE = UserState(MEMORY)
+aidialog = AIBotDialog(USER_STATE)
+df_dialog = DataframeDialog(USER_STATE)
 
 # Create the Bot
-BOT = EchoBot()
+BOT = PeteBot(CONVERSATION_STATE, USER_STATE)
 
 
 # Listen for incoming requests on /api/messages
@@ -69,6 +102,7 @@ APP.router.add_post("/api/messages", messages)
 
 if __name__ == "__main__":
     try:
+        logger.info("Starting the server")
         web.run_app(APP, host="localhost", port=CONFIG.PORT)
     except Exception as error:
         raise error
