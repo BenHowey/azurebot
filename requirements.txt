@@ -6,3 +6,4 @@ python-dotenv
 pandasai==2.0.43
 numpy==1.24.3
 pyyaml==6.0
+botbuilder-dialogs==4.15.0
