@@ -4,7 +4,6 @@ import csv
 import requests
 import tempfile
 import os
-import tqdm
 
 HEADERS = {"OBJECTID": {"dtype": "PRIMARY KEY", "description": "Unique ID of the incident"},
          "ROSNumber": {"dtype": "TEXT", "description": "The coast guard Incident number"},

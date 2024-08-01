@@ -26,10 +26,10 @@ from botbuilder.core import (
 )
 
 # from dialogs.dataframe_dialog import UserProfileDialog
-from dialogs.df_dialog import DataframeDialog
+# from dialogs.df_dialog import DataframeDialog
 # from dialogs.ai_dialog import AIBotDialog
-from dialogs.ai_chatgtp import AIBotDialog
-from dialogs.main_dialog import MainDialog
+# from dialogs.ai_chatgtp import AIBotDialog
+# from dialogs.main_dialog import MainDialog
 CONFIG = DefaultConfig()
 
 # Create adapter.
@@ -85,8 +85,8 @@ ADAPTER.on_turn_error = on_error
 MEMORY = MemoryStorage()
 CONVERSATION_STATE = ConversationState(MEMORY)
 USER_STATE = UserState(MEMORY)
-aidialog = AIBotDialog(USER_STATE)
-df_dialog = DataframeDialog(USER_STATE)
+# aidialog = AIBotDialog(USER_STATE)
+# df_dialog = DataframeDialog(USER_STATE)
 
 # Create the Bot
 BOT = PeteBot(CONVERSATION_STATE, USER_STATE)
