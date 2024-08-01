@@ -8,12 +8,12 @@ import re
 
 import openai
 import pandas as pd
-import pandasai.exceptions as pd_exceptions
+# import pandasai.exceptions as pd_exceptions
 from botbuilder.core import MessageFactory, UserState
 from botbuilder.dialogs import (ComponentDialog, DialogTurnResult,
                                 WaterfallDialog, WaterfallStepContext)
 from botbuilder.dialogs.prompts import PromptOptions, TextPrompt
-from databricks import sql
+# from databricks import sql
 # from connectors.databricks_connector import DatabricksConnector
 from connectors.sqlite_connector import SQLliteConnector
 
