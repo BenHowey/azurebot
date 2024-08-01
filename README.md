@@ -1,3 +1,7 @@
+
+![alt text](openart-4f173c85f5b8486dadaf01343481a94f_raw.jpg)
+
+
 # RNLI open source data chatbot
 This is a chatbot that is linked to RNLI open data return of service database.
 The database is accessed through the connectors classes.  It is currently set to use the open data database, however there is a Databricks config to connect to incident data. To run using the databricks option you need to change the connector class import in `ai_chatgtp.py`.  At the moment it is set up with minimal manual SQL cleaning, however if you find it is needed, you can add clensing commands in the `clean_sql` method of the `AIBotDialog` class.
