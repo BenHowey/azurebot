@@ -2,3 +2,12 @@
 __pycache__
 .vscode
 *.log
+test*
+*/__pycache__
+.vscode
+cache/
+*/cache/
+*.csv
+exports/
+__init__.py
+*.json
