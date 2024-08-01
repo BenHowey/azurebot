@@ -1,9 +1,10 @@
 botbuilder-integration-aiohttp>=4.14.0
 botbuilder-core
 botbuilder-schema
-pandas==1.5.3
+pandas
 python-dotenv
-pandasai==2.0.43
 numpy==1.24.3
 pyyaml==6.0
 botbuilder-dialogs==4.15.0
+databricks
+openai==0.28.1
