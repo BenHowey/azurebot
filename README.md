@@ -7,7 +7,7 @@ This is a chatbot that is linked to RNLI open data return of service database.
 The database is accessed through the connectors classes.  It is currently set to use the open data database, however there is a Databricks config to connect to incident data. To run using the databricks option you need to change the connector class import in `ai_chatgtp.py`.  At the moment it is set up with minimal manual SQL cleaning, however if you find it is needed, you can add clensing commands in the `clean_sql` method of the `AIBotDialog` class.
 
 
-# This example is hosted on my-july-bot on azureStep by step how to do it
+# This example is hosted  on the gitbot-webapp on my personal Azure account Step by step how to do it
 1. Create azure resource group
 2. Within the resource group create an azure bot - create a new ASP (Azure service provision) as part of the set up within the resource group
 3. In the bot configuration AppID Manage password - delete the password and generate a new one

@@ -1,8 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
 
-import logging
 import datetime
+import logging
+import os
+import shutil
+
 from botbuilder.core import (ActivityHandler, ConversationState,
                              StatePropertyAccessor, TurnContext, UserState)
 from botbuilder.dialogs import Dialog, DialogSet, DialogTurnStatus
@@ -85,6 +88,9 @@ class PeteBot(ActivityHandler):
                 # Restart the session
                 await self.dialog_state_property.delete(turn_context)
                 await turn_context.send_activity("Session has been inactive for 10 minutes. Restarting session.")
+                # if the bot is restarted, remove the last database if its a sqlite database
+                if self.dialog.data_connector.database_type == 'sqlite':
+                    shutil.rmtree(os.path.dirname(self.dialog.data_connector.databse_path), ignore_errors=True)
                 await self.on_members_added_activity([turn_context.activity.from_property], turn_context)
                 return
 

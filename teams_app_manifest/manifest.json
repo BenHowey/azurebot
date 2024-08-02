@@ -1,0 +1,54 @@
+{
+    "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.14/MicrosoftTeams.schema.json",
+    "manifestVersion": "1.14",
+    "version": "1.0.0",
+    "id": "${{MicrosoftAppId}}",
+    "developer": {
+      "name": "Ben Howey",
+      "websiteUrl": "https://www.microsoft.com",
+      "privacyUrl": "https://www.teams.com/privacy",
+      "termsOfUseUrl": "https://www.teams.com/termsofuser"
+    },
+    "icons": {
+      "outline": "outline.png",
+      "color": "color.png"
+    },
+    "name": {
+      "short": "Petey Puffin Apprentice",
+      "full": "An chatbot to answer stats questions"
+    },
+    "description": {
+      "short": "The RNLI Chatbot",
+      "full": "Petey Puffin is a chatbot to help answer stats questions"
+    },
+    "accentColor": "#FFFFFF",
+    "bots": [
+      {
+        "botId": "${{MicrosoftAppId}}",
+        "scopes": [
+          "personal",
+          "groupchat",
+          "team"
+        ],
+        "isNotificationOnly": false,
+        "supportsCalling": false,
+        "supportsVideo": false,
+        "supportsFiles": false,
+          "commandLists": [
+          {
+            "scopes": [
+              "personal",
+              "groupchat",
+              "team"
+            ],
+            "commands": [
+            ]
+          }
+        ]
+      }
+    ],
+    "permissions": [
+      "identity",
+      "messageTeamMembers"
+    ]
+  }
