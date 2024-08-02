@@ -270,15 +270,24 @@ class AIBotDialog(ComponentDialog):
         # WaterfallStep always finishes with the end of the Waterfall or with another dialog;
         # here it is a Prompt Dialog. Running a prompt here means the next WaterfallStep will
         # be run when the users response is received.
-        # self.response = self.agent.chat(self.question)
-        self.response = self.request_data(self.question)
-
-        return await step_context.prompt(
-            TextPrompt.__name__,
-            PromptOptions(
-                prompt=MessageFactory.text(f"{self.response.explaination}")
+        # hard coved response check here
+        if 'Rich Martin' in self.question:
+            return await step_context.prompt(
+                TextPrompt.__name__,
+                PromptOptions(
+                    prompt=MessageFactory.text("Rich is a mapping genius")
+                )
             )
-        )
+        else:
+            # self.response = self.agent.chat(self.question)
+            self.response = self.request_data(self.question)
+
+            return await step_context.prompt(
+                TextPrompt.__name__,
+                PromptOptions(
+                    prompt=MessageFactory.text(f"{self.response.explaination}")
+                )
+            )
 
     async def check_answer(self, step_context: WaterfallStepContext) -> DialogTurnResult:
         # if thanks in the reply then end the dialog if not restart the dialog
