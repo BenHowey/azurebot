@@ -10,4 +10,3 @@ cache/
 *.csv
 exports/
 __init__.py
-*.json
