@@ -10,3 +10,5 @@ cache/
 *.csv
 exports/
 __init__.py
+*.db
+*conv.txt

@@ -3,8 +3,14 @@
 
 import datetime
 import logging
+from threading import Timer
+import json
 import os
-import shutil
+
+from sqlalchemy import create_engine, Column, String, DateTime, Integer, TEXT, NVARCHAR
+from sqlalchemy.orm import sessionmaker, declarative_base
+import datetime
+
 
 from botbuilder.core import (ActivityHandler, ConversationState,
                              StatePropertyAccessor, TurnContext, UserState)
@@ -13,7 +19,21 @@ from botbuilder.schema import ChannelAccount
 
 from dialogs.ai_chatgtp import AIBotDialog
 
+import urllib
+
 logger = logging.getLogger(__name__)
+
+TIMEOUT = 60
+
+Base = declarative_base()
+
+
+class Message(Base):
+    __tablename__ = 'botmessagesdb'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    userid = Column(TEXT, nullable=False)
+    datetime = Column(DateTime, nullable=False)
+    conversation = Column(TEXT, nullable=True)
 
 
 class DialogHelper:
@@ -39,11 +59,36 @@ class PeteBot(ActivityHandler):
         self.last_activity_property = self.user_state.create_property("LastActivity")
         self.dialog_state_property = self.conversation_state.create_property("DialogState")
         self.initialize_dialog()
+        self.inactivity_timer = None
 
     def initialize_dialog(self):
         # Reinitialize the dialog instance
         self.dialog = AIBotDialog(self.user_state)  # Replace with your actual dialog class and initialization if needed
 
+    def reset_inactivitytimer(self):
+        if self.inactivity_timer:
+            self.inactivity_timer.cancel()
+
+        self.inactivity_timer = Timer(TIMEOUT, self.log_prompt)
+        self.inactivity_timer.start()
+
+    def log_prompt(self):
+        print("loggine conversation")
+        parmas = urllib.parse.quote_plus(os.getenv("SQLAZURECONNSTR_"))
+        conn_str = 'mssql+pyodbc://?odbc_connect=' + parmas
+        engine = create_engine(conn_str, echo=True)
+        message = Message(datetime=datetime.datetime.now(), userid=self.user_id, conversation=json.dumps(self.dialog.prompt))
+
+        # Create a Session class
+        Session = sessionmaker(bind=engine)
+
+        # Create a session instance
+        session = Session()
+        # Add the new message to the session
+        session.add(message)
+        session.commit()
+        session.close()
+        print("Prompt logged")
 
     async def on_members_added_activity(
         self, members_added: [ChannelAccount], turn_context: TurnContext
@@ -58,6 +103,8 @@ class PeteBot(ActivityHandler):
                                                  I am trained on the RNLI
                                                  incident data.
                                                  """)
+
+                self.user_id = turn_context.activity.recipient.id
 
                 await self.last_activity_property.set(turn_context, current_time)
                 await self.user_state.save_changes(turn_context)
@@ -81,16 +128,15 @@ class PeteBot(ActivityHandler):
     async def on_message_activity(self, turn_context: TurnContext):
         current_time = datetime.datetime.now(datetime.timezone.utc)
         last_activity_time = await self.last_activity_property.get(turn_context, None)
-
+        self.user_id = turn_context.activity.recipient.id
         if last_activity_time:
+            self.reset_inactivitytimer()
+
             elapsed_time = current_time - last_activity_time
-            if elapsed_time.total_seconds() > 600:  # 600 seconds = 10 minutes
+            if elapsed_time.total_seconds() > TIMEOUT:  # 600 seconds = 10 minutes
                 # Restart the session
                 await self.dialog_state_property.delete(turn_context)
                 await turn_context.send_activity("Session has been inactive for 10 minutes. Restarting session.")
-                # if the bot is restarted, remove the last database if its a sqlite database
-                if self.dialog.data_connector.database_type == 'sqlite':
-                    shutil.rmtree(os.path.dirname(self.dialog.data_connector.databse_path), ignore_errors=True)
                 await self.on_members_added_activity([turn_context.activity.from_property], turn_context)
                 return
 
