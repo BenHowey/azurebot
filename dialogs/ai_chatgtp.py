@@ -5,6 +5,7 @@ import datetime
 import json
 import os
 import re
+from threading import Timer
 
 import openai
 import pandas as pd
@@ -13,6 +14,7 @@ from botbuilder.core import MessageFactory, UserState
 from botbuilder.dialogs import (ComponentDialog, DialogTurnResult,
                                 WaterfallDialog, WaterfallStepContext)
 from botbuilder.dialogs.prompts import PromptOptions, TextPrompt
+
 # from databricks import sql
 # from connectors.databricks_connector import DatabricksConnector
 from connectors.sqlite_connector import SQLliteConnector
@@ -45,7 +47,7 @@ class AIBotDialog(ComponentDialog):
         self.data_connector = SQLliteConnector()
 
         self.prompt = []
-        # formatted_descriptions = "\n".join([f"- **{col}**: {desc}" for col, desc in tc.column_descriptions.items()])
+
         system = f"""
         You are a statistics expert that provides insight to my {self.data_connector.database_type} database table called '{self.data_connector.table_name}'.  Any SQL commands must only reference this table
         and be in the correct syntax for this type of database.  
@@ -146,7 +148,7 @@ class AIBotDialog(ComponentDialog):
                 seed=42,
                 messages=self.prompt,
                 temperature=0,
-                response_format={"type": "json_object" },
+                response_format={"type": "json_object"},
                 max_tokens=256)
             try:
                 # check if the response has the correct format with either a sql or conversational response
