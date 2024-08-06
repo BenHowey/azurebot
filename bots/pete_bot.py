@@ -74,7 +74,7 @@ class PeteBot(ActivityHandler):
 
     def log_prompt(self):
         print("loggine conversation")
-        parmas = urllib.parse.quote_plus(os.getenv("SQLAZURECONNSTR_"))
+        parmas = urllib.parse.quote_plus(os.getenv("SQLAZURECONNSTR_SQLAZURECONNSTR_"))
         conn_str = 'mssql+pyodbc://?odbc_connect=' + parmas
         engine = create_engine(conn_str, echo=True)
         message = Message(datetime=datetime.datetime.now(), userid=self.user_id, conversation=json.dumps(self.dialog.prompt))
