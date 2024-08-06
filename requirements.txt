@@ -9,3 +9,4 @@ botbuilder-dialogs==4.15.0
 databricks
 openai==0.28.1
 SQLAlchemy==1.4.45
+pyodbc

@@ -74,12 +74,9 @@ class PeteBot(ActivityHandler):
 
     def log_prompt(self):
         print("loggine conversation")
-        azure_db_pass = os.getenv("AZURE_DB_PASS")
-        azure_db_user = os.getenv("AZURE_DB_USER")
-        parmas = urllib.parse.quote_plus(f"Driver={{SQL Server}};Server=tcp:gitbotchatdb.database.windows.net,1433;Database=gitbotChatDB;Uid={azure_db_user};Pwd={azure_db_pass};Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;")
+        parmas = urllib.parse.quote_plus(os.getenv("SQLAZURECONNSTR_"))
         conn_str = 'mssql+pyodbc://?odbc_connect=' + parmas
         engine = create_engine(conn_str, echo=True)
-        # pmompt_list = [Message(datetime=datetime.datetime.now(), role=pr['role'], content=pr['content']) for pr in self.dialog.prompt]
         message = Message(datetime=datetime.datetime.now(), userid=self.user_id, conversation=json.dumps(self.dialog.prompt))
 
         # Create a Session class
