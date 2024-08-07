@@ -2,28 +2,26 @@
 # Licensed under the MIT License.
 
 import datetime
-import logging
-from threading import Timer
 import json
+import logging
 import os
-
-from sqlalchemy import create_engine, Column, String, DateTime, Integer, TEXT, NVARCHAR
-from sqlalchemy.orm import sessionmaker, declarative_base
-import datetime
-
+import urllib
+from threading import Timer
 
 from botbuilder.core import (ActivityHandler, ConversationState,
                              StatePropertyAccessor, TurnContext, UserState)
 from botbuilder.dialogs import Dialog, DialogSet, DialogTurnStatus
 from botbuilder.schema import ChannelAccount
+from sqlalchemy import (NVARCHAR, TEXT, Column, DateTime, Integer, String,
+                        create_engine)
+from sqlalchemy.orm import declarative_base, sessionmaker
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 from dialogs.ai_chatgtp import AIBotDialog
 
-import urllib
-
 logger = logging.getLogger(__name__)
 
-TIMEOUT = 60
+TIMEOUT = 600
 
 Base = declarative_base()
 
@@ -72,12 +70,13 @@ class PeteBot(ActivityHandler):
         self.inactivity_timer = Timer(TIMEOUT, self.log_prompt)
         self.inactivity_timer.start()
 
+    @retry(stop=stop_after_attempt(5), wait=wait_fixed(5))
     def log_prompt(self):
         print("loggine conversation")
         parmas = urllib.parse.quote_plus(os.getenv("SQLAZURECONNSTR_SQLAZURECONNSTR_"))
         conn_str = 'mssql+pyodbc://?odbc_connect=' + parmas
         engine = create_engine(conn_str, echo=True)
-        message = Message(datetime=datetime.datetime.now(), userid=self.user_id, conversation=json.dumps(self.dialog.prompt))
+        message = Message(datetime=datetime.datetime.now(), userid=self.user_id, conversation=json.dumps(self.dialog.prompt, indent=4))
 
         # Create a Session class
         Session = sessionmaker(bind=engine)
@@ -142,7 +141,7 @@ class PeteBot(ActivityHandler):
 
         # Update the last activity time
         await self.last_activity_property.set(turn_context, current_time)
-        await self.user_state.save_changes(turn_context) 
+        await self.user_state.save_changes(turn_context)
 
         await DialogHelper.run_dialog(
             self.dialog,
