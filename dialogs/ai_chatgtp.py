@@ -14,6 +14,7 @@ from botbuilder.core import MessageFactory, UserState
 from botbuilder.dialogs import (ComponentDialog, DialogTurnResult,
                                 WaterfallDialog, WaterfallStepContext)
 from botbuilder.dialogs.prompts import PromptOptions, TextPrompt
+from botbuilder.core import StatePropertyAccessor
 
 # from databricks import sql
 # from connectors.databricks_connector import DatabricksConnector
@@ -27,6 +28,8 @@ class AIBotDialog(ComponentDialog):
         super(AIBotDialog, self).__init__(AIBotDialog.__name__)
 
         self.user_profile_accessor = user_state.create_property("UserProfile")
+        self.user_conversations_accessor: StatePropertyAccessor = user_state.create_property("UserConversations")
+
         # set up the diaglog waterfall flow
         self.add_dialog(
             WaterfallDialog(
@@ -38,6 +41,7 @@ class AIBotDialog(ComponentDialog):
                 ],
             )
         )
+        self.user_state = user_state
 
         self.add_dialog(TextPrompt(TextPrompt.__name__))
 
@@ -45,8 +49,6 @@ class AIBotDialog(ComponentDialog):
 
         # Add the data connector
         self.data_connector = SQLliteConnector()
-
-        self.prompt = []
 
         system = f"""
         You are a statistics expert that provides insight to my {self.data_connector.database_type} database table called '{self.data_connector.table_name}'.  Any SQL commands must only reference this table
@@ -76,27 +78,30 @@ class AIBotDialog(ComponentDialog):
 
         {self.data_connector.additional_system_info}
         """
-        self.prompt.append({"role": "system", "content": system})
 
-    # def query_source_data(self, query):
-    #     with sql.connect(server_hostname=os.getenv("DATABRICKS_SERVER_HOSTNAME"),
-    #                      http_path=os.getenv("DATABRICKS_HTTP_PATH"),
-    #                      access_token=os.getenv("DATABRICKS_TOKEN")) as connection:
+        self.system_prompt = {"role": "system", "content": system}
 
-    #         with connection.cursor() as cursor:
-    #             cursor.execute(query)
-    #             result = cursor.fetchall()
+    async def update_user_conversations(self, step_context, user_id, role, content):
+        # Retrieve current conversation
+        user_conversations = await self.user_conversations_accessor.get(step_context, {})
 
-    #     return result
+        # Initialize if necessary
+        if user_conversations is None:
+            user_conversations = {}
+        if user_id not in user_conversations:
+            user_conversations[user_id] = []
 
-    def describe_source_table(self, table_name):
-        query = "DESCRIBE " + table_name + ";"
-        result = self.data_connector.query_source_data(query)
-        rows = [{'column_name': obj.col_name, 'column_type': obj.data_type} for obj in result]
+        # Update the conversation
+        user_conversations[user_id].append({
+            'role': role,
+            'content': content
+        })
 
-        return pd.DataFrame(rows)
+        # Save the updated conversation back to state
+        await self.user_conversations_accessor.set(step_context, user_conversations)
+        await self.user_state.save_changes(step_context)
 
-    def clean_strings(self, input_string, command_type='conv_resp'):
+    async def clean_strings(self, input_string, command_type='conv_resp'):
         # remove leading and trailing quotes
         clean_str = input_string.strip().lstrip('"').lstrip("'").rstrip('"').rstrip("'")
         # remove backslashes
@@ -112,10 +117,9 @@ class AIBotDialog(ComponentDialog):
         # json_clean_content = json.dumps({command_type: clean_str})
         json_clean_content = json.dumps(clean_str)
 
-
         return json_clean_content
 
-    def clean_sql(self, sql_query):
+    async def clean_sql(self, sql_query):
         # if lifeboat station in the Where make sure it is nested in % marks
         # if 'WHERE' in sql_query and 'Lifeboat_Station' in sql_query:
         #     # make sure there is a % around the value
@@ -134,8 +138,10 @@ class AIBotDialog(ComponentDialog):
 
         return sql_query
 
-    def nl_to_sql(self, plain_query):
-        self.prompt.append({"role": "user", "content": plain_query})
+    async def nl_to_sql(self, plain_query, user_id, step_context):
+        # self.prompt.append({"role": "user", "content": plain_query})
+
+        user_conversations = await self.user_conversations_accessor.get(step_context, {})
 
         regex_pattern = r'\{"(sql_resp|conv_resp)"\s*:\s*"[^"]*"\}'
 
@@ -146,7 +152,7 @@ class AIBotDialog(ComponentDialog):
                 # model="gpt-3.5-turbo",
                 model="gpt-4o-mini",
                 seed=42,
-                messages=self.prompt,
+                messages=user_conversations[user_id],
                 temperature=0,
                 response_format={"type": "json_object"},
                 max_tokens=256)
@@ -158,38 +164,44 @@ class AIBotDialog(ComponentDialog):
                 command_type = "sql_resp" if 'SELECT' in resp_message and "sql_resp" in resp_message else "conv_resp"
                 if patterncheck is None:
                     if len(resp_message.split(':')) == 1:   # one single string with no colon
-                        content = self.clean_strings(resp_message, command_type)
+                        content = await self.clean_strings(resp_message, command_type)
                         print('Formatting a single string with no colon')
                         content_formatted = f'{{"{command_type}":{content}}}'
                         # if the command type is sql clean it
                         if command_type == 'sql_resp':
-                            content_formatted = self.clean_sql(content_formatted)
+                            content_formatted = await self.clean_sql(content_formatted)
                         resp_generated = json.loads(content_formatted)
                         break
+
                     elif len(resp_message.split(':')) == 2:  # one single string with a colon
                         # check out if the content is non-conformative - we can for the key
-                        content = self.clean_strings(resp_message.split(':')[-1].strip('}'), command_type)
+                        content = await self.clean_strings(resp_message.split(':')[-1].strip('}'), command_type)
                         print('Formatting a non-conforming string with a colon')
                         content_formatted = f'{{"{command_type}":{content}}}'
                         # if the command type is sql clean it
                         if command_type == 'sql_resp':
-                            content_formatted = self.clean_sql(content_formatted)
+                            content_formatted = await self.clean_sql(content_formatted)
                         resp_generated = json.loads(content_formatted)
                         break
+
                     else:   # if it's more than 2 elements on the split or anything else we repeat
                         try:  # try joining the last elements
                             print('joining the last elements')
-                            elements=resp_message.split(':')
-                            content = self.clean_strings(':'.join(elements[1:]).strip('}'), command_type)
+                            elements = resp_message.split(':')
+                            content = await self.clean_strings(':'.join(elements[1:]).strip('}'), command_type)
                             content_formatted = f'{{"{command_type}":{content}}}'
                             resp_generated = json.loads(content_formatted)
                             break
                         except:
                             print('Cant join the last elsements so going to re-run the command and try again.')
+
                         print('Formatting a non-conforming string with more than 2 elements.')
-                        self.prompt[-1]['content'] = self.prompt[-1]['content'] + f' Remember to give your anwer in format that conforms with this regex: {regex_pattern}'
+                        self_healing_conv = user_conversations[user_id][-1]['content'] + f' Remember to give your anwer in format that conforms with this regex: {regex_pattern}'
+                        await self.update_user_conversations(step_context, user_id, 'assistant', str(self_healing_conv))
+
                         attempt += 1
                         continue
+
                 else:
                     # check that it is not a conv with a nested sql command
                     if len(patterncheck.regs) == 2 and not patterncheck.regs[0][0]==0:  # this is sql nested in a conv
@@ -202,7 +214,7 @@ class AIBotDialog(ComponentDialog):
                     if command_type == 'sql_resp':
                         # pull out the regex match to make sure that the only bit being sent
                         content_formatted = resp_message[patterncheck.regs[0][0]:patterncheck.regs[0][1]]
-                        response['choices'][0]['message']['content'] = self.clean_sql(content_formatted)
+                        response['choices'][0]['message']['content'] = await self.clean_sql(content_formatted)
 
                     resp_generated = json.loads(response['choices'][0]['message']['content'])
                     break
@@ -212,13 +224,13 @@ class AIBotDialog(ComponentDialog):
 
         return resp_generated
 
-    def request_data(self, plain_query):
+    async def request_data(self, plain_query, user_id, step_context):
         class response:
             def __init__(response, data, sql):
                 response.data = data
                 response.explaination = explaination
 
-        resp_generated = self.nl_to_sql(plain_query)
+        resp_generated = await self.nl_to_sql(plain_query, user_id, step_context)
         # check if the response is a conversational response
         if 'sql_resp' in resp_generated.keys():
 
@@ -232,21 +244,32 @@ class AIBotDialog(ComponentDialog):
             except Exception as e:
                 # if it errors - pass the SQL with the error back and try to fix it!
                 print('Self healing!')
-                print(f'''The sql run was:{resp_generated['sql_resp']}, the following error was raised:{e}. Correct the SQL command and return in the format {{"sql_resp":corrected_sql_command}}''')
-                resp_generated = self.nl_to_sql(f'''The sql run was:{resp_generated['sql_resp']}, the following error was raised:{e}. Correct the SQL command and return in the format {{"sql_resp":corrected_sql_command}}''')
+                exception_query = f'''The sql run was:{resp_generated['sql_resp']}, the following error was raised:{e}. Correct the SQL command and return in the format {{"sql_resp":corrected_sql_command}}'''
+                await self.update_user_conversations(step_context, user_id, 'assistant', str(exception_query))
+
+                resp_generated = await self.nl_to_sql(exception_query, user_id, step_context)
                 # try and run again
                 sql_response = self.data_connector.query_source_data(resp_generated['sql_resp'])
                 data = sql_response.__str__()
 
-            self.prompt.append({"role": "assistant", "content": str(resp_generated)})
+            await self.update_user_conversations(step_context, user_id, 'assistant', str(resp_generated))
+
+            # add the convert numbers to sentence conv
+            num2conv = f'The question was:{plain_query}, the answer is:{data}. Give the answer in a sentence with the format {{"conv_resp":answer_as_sentence}}'
+            await self.update_user_conversations(step_context, user_id, 'assistant', str(num2conv))
+
             # get explanation of how you came to that answer
-            explaination_query = self.nl_to_sql(f'The question was:{plain_query}, the answer is:{data}. Give the answer in a sentence with the format {{"conv_resp":answer_as_sentence}}')
-            self.prompt.append({"role": "assistant", "content": str(explaination_query)})
+            explaination_query = await self.nl_to_sql(num2conv, user_id, step_context)
+            # self.prompt.append({"role": "assistant", "content": str(explaination_query)})
+            await self.update_user_conversations(step_context, user_id, 'assistant', str(explaination_query))
+
             explaination = explaination_query['conv_resp'].format(sql_response=data)
         else:
             explaination = resp_generated['conv_resp']
             data = None
-        self.prompt.append({"role": "assistant", "content": str(explaination)})
+
+        await self.update_user_conversations(step_context, user_id, 'assistant', str(explaination))
+
         return response(data, resp_generated)
 
     async def ai_bot_question(
@@ -263,6 +286,9 @@ class AIBotDialog(ComponentDialog):
                 ),
             )
         else:
+            user_id = step_context._turn_context.activity.from_property.id
+
+            await self.update_user_conversations(step_context.context, user_id, 'user', step_context.options['question'])
             return await step_context.next(step_context.options['question'])
 
     async def ai_bot_answer(
@@ -272,7 +298,6 @@ class AIBotDialog(ComponentDialog):
         # WaterfallStep always finishes with the end of the Waterfall or with another dialog;
         # here it is a Prompt Dialog. Running a prompt here means the next WaterfallStep will
         # be run when the users response is received.
-        # hard coved response check here
         if 'Rich Martin' in self.question:
             return await step_context.prompt(
                 TextPrompt.__name__,
@@ -281,8 +306,18 @@ class AIBotDialog(ComponentDialog):
                 )
             )
         else:
-            # self.response = self.agent.chat(self.question)
-            self.response = self.request_data(self.question)
+            user_id = step_context._turn_context.activity.from_property.id
+            user_conversations = await self.user_conversations_accessor.get(step_context.context, {})
+            if user_conversations is None:
+                user_conversations = {}
+
+            if user_id not in user_conversations:
+                await self.update_user_conversations(step_context.context, user_id, 'system', self.system_prompt['content'])
+                await self.update_user_conversations(step_context.context, user_id, 'user', self.question)
+
+            user_conversations = await self.user_conversations_accessor.get(step_context.context, {})
+
+            self.response = await self.request_data(self.question, user_id, step_context._turn_context)
 
             return await step_context.prompt(
                 TextPrompt.__name__,
