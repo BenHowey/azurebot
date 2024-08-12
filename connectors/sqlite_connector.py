@@ -2,7 +2,6 @@ import sqlite3 as sql
 import sqlite3
 import csv
 import requests
-import tempfile
 import os
 
 
