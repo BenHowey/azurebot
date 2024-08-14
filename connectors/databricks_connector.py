@@ -79,6 +79,12 @@ class DatabricksConnector():
 
             with connection.cursor() as cursor:
                 cursor.execute(query)
-                result = cursor.fetchall()
+                # get the column headings
+                column_names = [description[0] for description in cursor.description]
+                # fetch all the results
+                rows = cursor.fetchall()
+                # zip the column names and the rows to create a dictionary
+                result = [dict(zip(column_names, row)) for row in rows]
 
+        cursor.close()
         return result

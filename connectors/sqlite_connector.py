@@ -86,7 +86,18 @@ class SQLliteConnector():
         conn = sql.connect(self.database_path)
         c = conn.cursor()
         c.execute(query)
-        result = c.fetchall()
+        # Fetch the column names from the cursor's description attribute
+        column_names = [description[0] for description in c.description]
+
+        # Fetch all the results
+        rows = c.fetchall()
+
+        # Combine column names with rows to create a list of dictionaries
+        result = [dict(zip(column_names, row)) for row in rows]
+
+        # Close the connection
+        conn.close()
+        # result = c.fetchall()
         return result
 
 

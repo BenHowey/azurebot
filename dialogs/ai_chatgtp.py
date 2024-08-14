@@ -10,11 +10,10 @@ from threading import Timer
 import openai
 import pandas as pd
 # import pandasai.exceptions as pd_exceptions
-from botbuilder.core import MessageFactory, UserState
+from botbuilder.core import MessageFactory, StatePropertyAccessor, UserState
 from botbuilder.dialogs import (ComponentDialog, DialogTurnResult,
                                 WaterfallDialog, WaterfallStepContext)
 from botbuilder.dialogs.prompts import PromptOptions, TextPrompt
-from botbuilder.core import StatePropertyAccessor
 
 # from databricks import sql
 # from connectors.databricks_connector import DatabricksConnector
@@ -49,6 +48,7 @@ class AIBotDialog(ComponentDialog):
 
         # Add the data connector
         self.data_connector = SQLliteConnector()
+        # self.data_connector = DatabricksConnector()
 
         system = f"""
         You are a statistics expert that provides insight to my {self.data_connector.database_type} database table called '{self.data_connector.table_name}'.  Any SQL commands must only reference this table
@@ -225,7 +225,7 @@ class AIBotDialog(ComponentDialog):
         return resp_generated
 
     async def request_data(self, plain_query, user_id, step_context):
-        class response:
+        class Response:
             def __init__(response, data, sql):
                 response.data = data
                 response.explaination = explaination
@@ -236,6 +236,7 @@ class AIBotDialog(ComponentDialog):
 
             try:
                 sql_response = self.data_connector.query_source_data(resp_generated['sql_resp'])
+                sql_keys = sql_response[0].keys()
                 # we need to check that no more than 10 rows are returned otherwise we will be using too many tokens
                 if len(sql_response) > 10:
                     pass
@@ -255,7 +256,8 @@ class AIBotDialog(ComponentDialog):
             await self.update_user_conversations(step_context, user_id, 'assistant', str(resp_generated))
 
             # add the convert numbers to sentence conv
-            num2conv = f'The question was:{plain_query}, the answer is:{data}. Give the answer in a sentence with the format {{"conv_resp":answer_as_sentence}}'
+            # num2conv = f'The question was:{plain_query}, the answer is:{data}. Give the answer in a sentence with the format {{"conv_resp":answer_as_sentence}}'
+            num2conv = f'The question was:{plain_query}.  You have run the command and have the result in a dictionary called data with the keys {sql_keys}. Give the answer in a sentence with the format {{"conv_resp":answer_as_sentence}} and use the data key names as placeholders for the results that can be filled using .format(data)'
             await self.update_user_conversations(step_context, user_id, 'assistant', str(num2conv))
 
             # get explanation of how you came to that answer
@@ -263,14 +265,15 @@ class AIBotDialog(ComponentDialog):
             # self.prompt.append({"role": "assistant", "content": str(explaination_query)})
             await self.update_user_conversations(step_context, user_id, 'assistant', str(explaination_query))
 
-            explaination = explaination_query['conv_resp'].format(sql_response=data)
+            # explaination = explaination_query['conv_resp'].format(sql_response=data)
+            explaination = explaination_query['conv_resp'].format(**sql_response[0])
         else:
             explaination = resp_generated['conv_resp']
             data = None
 
         await self.update_user_conversations(step_context, user_id, 'assistant', str(explaination))
 
-        return response(data, resp_generated)
+        return Response(data, resp_generated)
 
     async def ai_bot_question(
         self, step_context: WaterfallStepContext
