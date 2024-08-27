@@ -6,6 +6,8 @@ import json
 import os
 import re
 from threading import Timer
+import requests
+import base64
 
 import openai
 import pandas as pd
@@ -14,6 +16,7 @@ from botbuilder.core import MessageFactory, StatePropertyAccessor, UserState
 from botbuilder.dialogs import (ComponentDialog, DialogTurnResult,
                                 WaterfallDialog, WaterfallStepContext)
 from botbuilder.dialogs.prompts import PromptOptions, TextPrompt
+from botbuilder.schema import Attachment
 
 # from databricks import sql
 # from connectors.databricks_connector import DatabricksConnector
@@ -274,10 +277,59 @@ class AIBotDialog(ComponentDialog):
         await self.update_user_conversations(step_context, user_id, 'assistant', str(explaination))
 
         return Response(data, resp_generated)
+    
+    def download_image(self, attachment: Attachment) -> bytes:
+        response = requests.get(attachment.content_url)
+        response.raise_for_status()
+        return base64.b64encode(response.content).decode('utf-8')
+    
+    async def process_image_for_lifeboat(self, base64_image: str) -> str:
+        # Use GPT-4o-mini to detect lifeboats and extract vessel numbers
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"
+        }
+
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Check if this image is of a lifeboat and extract the vessel number if possible. It will have the format 'RNLI XX-XX' where X is a number.  Return only the vessel number"},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            }
+                        }
+                    ],
+                }
+            ],
+            "max_tokens": 100,
+        }
+
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+        result_text = response.json()['choices'][0]['message']['content'].strip()
+
+        # if "vessel number" in result_text.lower():
+        #     return result_text.split(":")[-1].strip()
+        # else:
+        #     return "Not a lifeboat or I can't read the number."
+        return result_text
 
     async def ai_bot_question(
         self, step_context: WaterfallStepContext
     ) -> DialogTurnResult:
+        
+        if step_context._turn_context.activity.attachments and step_context._turn_context.activity.attachments[0].content_type.startswith("image/"):
+            attachment = step_context._turn_context.activity.attachments[0]
+            base64_image = self.download_image(attachment)
+            vessel_number = await self.process_image_for_lifeboat(base64_image)
+            # update the turn context text to have the vessel number bit in it
+            step_context._turn_context.activity.text = f'Give a description of the most recent incident involving lifeboat {vessel_number}'
+            step_context.options['question'] = f'Give a description of the most recent incident involving lifeboat {vessel_number}'
+
         # WaterfallStep always finishes with the end of the Waterfall or with another dialog;
         # here it is a Prompt Dialog. Running a prompt here means the next WaterfallStep will
         # be run when the users response is received.

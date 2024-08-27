@@ -151,6 +151,11 @@ class PeteBot(ActivityHandler):
         await self.last_activity_property.set(turn_context, current_time)
         await self.user_state.save_changes(turn_context)
 
+        # Check for image attachments
+        if turn_context.activity.attachments and turn_context.activity.attachments[0].content_type.startswith("image/"):
+            await turn_context.send_activity("Processing your image...")
+            turn_context.activity.text = "image_attachment" 
+
         await DialogHelper.run_dialog(
             self.dialog,
             turn_context,
